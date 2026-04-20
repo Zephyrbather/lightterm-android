@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.LightTerm" parent="Theme.LightTerm.PureBlack" />
+
+    <style name="Theme.LightTerm.Base" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">?attr/lightTermBackground</item>
+        <item name="android:windowBackground">?attr/lightTermBackground</item>
+    </style>
+
+    <style name="Theme.LightTerm.PureBlack" parent="Theme.LightTerm.Base">
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="colorPrimary">@color/palette_black_accent</item>
+        <item name="colorOnPrimary">@color/palette_black_background</item>
+        <item name="colorSecondary">@color/palette_black_accent_warm</item>
+        <item name="colorTertiary">@color/palette_black_status_reconnecting</item>
+        <item name="colorError">@color/palette_black_danger</item>
+        <item name="colorSurface">@color/palette_black_surface</item>
+        <item name="colorSurfaceVariant">@color/palette_black_surface_variant</item>
+        <item name="colorOnSurface">@color/palette_black_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/palette_black_on_surface_variant</item>
+        <item name="lightTermBackground">@color/palette_black_background</item>
+        <item name="lightTermSurface">@color/palette_black_surface</item>
+        <item name="lightTermSurfaceAlt">@color/palette_black_surface_alt</item>
+        <item name="lightTermSurfaceVariant">@color/palette_black_surface_variant</item>
+        <item name="lightTermOnSurface">@color/palette_black_on_surface</item>
+        <item name="lightTermOnSurfaceVariant">@color/palette_black_on_surface_variant</item>
+        <item name="lightTermAccent">@color/palette_black_accent</item>
+        <item name="lightTermAccentWarm">@color/palette_black_accent_warm</item>
+        <item name="lightTermStatusConnected">@color/palette_black_status_connected</item>
+        <item name="lightTermStatusConnecting">@color/palette_black_status_connecting</item>
+        <item name="lightTermStatusDisconnected">@color/palette_black_status_disconnected</item>
+        <item name="lightTermStatusReconnecting">@color/palette_black_status_reconnecting</item>
+        <item name="lightTermDanger">@color/palette_black_danger</item>
+        <item name="lightTermDangerContainer">@color/palette_black_danger_container</item>
+        <item name="lightTermDangerOnContainer">@color/palette_black_danger_on_container</item>
+        <item name="lightTermToolbarGradientStart">@color/palette_black_toolbar_gradient_start</item>
+        <item name="lightTermToolbarGradientEnd">@color/palette_black_toolbar_gradient_end</item>
+        <item name="lightTermTerminalGradientStart">@color/palette_black_terminal_gradient_start</item>
+        <item name="lightTermTerminalGradientEnd">@color/palette_black_terminal_gradient_end</item>
+        <item name="lightTermTerminalStroke">@color/palette_black_terminal_stroke</item>
+        <item name="lightTermChipFill">@color/palette_black_chip_fill</item>
+        <item name="lightTermChipStroke">@color/palette_black_chip_stroke</item>
+    </style>
+
+    <style name="Theme.LightTerm.PureWhite" parent="Theme.LightTerm.Base">
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="colorPrimary">@color/palette_white_accent</item>
+        <item name="colorOnPrimary">@color/palette_white_surface</item>
+        <item name="colorSecondary">@color/palette_white_accent_warm</item>
+        <item name="colorTertiary">@color/palette_white_status_reconnecting</item>
+        <item name="colorError">@color/palette_white_danger</item>
+        <item name="colorSurface">@color/palette_white_surface</item>
+        <item name="colorSurfaceVariant">@color/palette_white_surface_variant</item>
+        <item name="colorOnSurface">@color/palette_white_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/palette_white_on_surface_variant</item>
+        <item name="lightTermBackground">@color/palette_white_background</item>
+        <item name="lightTermSurface">@color/palette_white_surface</item>
+        <item name="lightTermSurfaceAlt">@color/palette_white_surface_alt</item>
+        <item name="lightTermSurfaceVariant">@color/palette_white_surface_variant</item>
+        <item name="lightTermOnSurface">@color/palette_white_on_surface</item>
+        <item name="lightTermOnSurfaceVariant">@color/palette_white_on_surface_variant</item>
+        <item name="lightTermAccent">@color/palette_white_accent</item>
+        <item name="lightTermAccentWarm">@color/palette_white_accent_warm</item>
+        <item name="lightTermStatusConnected">@color/palette_white_status_connected</item>
+        <item name="lightTermStatusConnecting">@color/palette_white_status_connecting</item>
+        <item name="lightTermStatusDisconnected">@color/palette_white_status_disconnected</item>
+        <item name="lightTermStatusReconnecting">@color/palette_white_status_reconnecting</item>
+        <item name="lightTermDanger">@color/palette_white_danger</item>
+        <item name="lightTermDangerContainer">@color/palette_white_danger_container</item>
+        <item name="lightTermDangerOnContainer">@color/palette_white_danger_on_container</item>
+        <item name="lightTermToolbarGradientStart">@color/palette_white_toolbar_gradient_start</item>
+        <item name="lightTermToolbarGradientEnd">@color/palette_white_toolbar_gradient_end</item>
+        <item name="lightTermTerminalGradientStart">@color/palette_white_terminal_gradient_start</item>
+        <item name="lightTermTerminalGradientEnd">@color/palette_white_terminal_gradient_end</item>
+        <item name="lightTermTerminalStroke">@color/palette_white_terminal_stroke</item>
+        <item name="lightTermChipFill">@color/palette_white_chip_fill</item>
+        <item name="lightTermChipStroke">@color/palette_white_chip_stroke</item>
+    </style>
+
+    <style name="Theme.LightTerm.SystemColor" parent="Theme.LightTerm.Base">
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="lightTermBackground">?attr/colorSurface</item>
+        <item name="lightTermSurface">?attr/colorSurface</item>
+        <item name="lightTermSurfaceAlt">?attr/colorSurfaceVariant</item>
+        <item name="lightTermSurfaceVariant">?attr/colorOutlineVariant</item>
+        <item name="lightTermOnSurface">?attr/colorOnSurface</item>
+        <item name="lightTermOnSurfaceVariant">?attr/colorOnSurfaceVariant</item>
+        <item name="lightTermAccent">?attr/colorPrimary</item>
+        <item name="lightTermAccentWarm">?attr/colorSecondary</item>
+        <item name="lightTermStatusConnected">?attr/colorPrimary</item>
+        <item name="lightTermStatusConnecting">?attr/colorSecondary</item>
+        <item name="lightTermStatusDisconnected">?attr/colorError</item>
+        <item name="lightTermStatusReconnecting">?attr/colorTertiary</item>
+        <item name="lightTermDanger">?attr/colorError</item>
+        <item name="lightTermDangerContainer">?attr/colorErrorContainer</item>
+        <item name="lightTermDangerOnContainer">?attr/colorOnErrorContainer</item>
+        <item name="lightTermToolbarGradientStart">?attr/colorSurface</item>
+        <item name="lightTermToolbarGradientEnd">?attr/colorSurfaceVariant</item>
+        <item name="lightTermTerminalGradientStart">?attr/colorSurface</item>
+        <item name="lightTermTerminalGradientEnd">?attr/colorSurfaceVariant</item>
+        <item name="lightTermTerminalStroke">?attr/colorOutlineVariant</item>
+        <item name="lightTermChipFill">?attr/colorSurfaceVariant</item>
+        <item name="lightTermChipStroke">?attr/colorOutlineVariant</item>
+    </style>
+
+    <style name="Widget.LightTerm.ServerItemActionButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">40dp</item>
+        <item name="cornerRadius">16dp</item>
+    </style>
+
+    <style name="Widget.LightTerm.ServerListActionButton" parent="Widget.LightTerm.ServerItemActionButton">
+        <item name="android:minHeight">36dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="strokeColor">?attr/lightTermSurfaceVariant</item>
+        <item name="android:textColor">?attr/lightTermOnSurface</item>
+    </style>
+
+    <style name="Widget.LightTerm.ServerListDeleteButton" parent="Widget.LightTerm.ServerListActionButton">
+        <item name="strokeColor">?attr/lightTermDanger</item>
+        <item name="android:textColor">?attr/lightTermDanger</item>
+    </style>
+
+    <style name="Widget.LightTerm.ServerListOpenButton" parent="Widget.Material3.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">36dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="backgroundTint">?attr/lightTermAccent</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+    </style>
+
+    <style name="Widget.LightTerm.ToolbarTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">18sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="Widget.LightTerm.ToolbarSubtitle" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="TextAppearance.LightTerm.PopupMenu" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="ThemeOverlay.LightTerm.ToolbarMenu" parent="ThemeOverlay.AppCompat">
+        <item name="android:popupBackground">@drawable/bg_toolbar_menu_popup</item>
+        <item name="android:textColorPrimary">?attr/lightTermOnSurface</item>
+        <item name="android:textColorSecondary">?attr/lightTermOnSurfaceVariant</item>
+        <item name="textAppearanceLargePopupMenu">@style/TextAppearance.LightTerm.PopupMenu</item>
+        <item name="textAppearanceSmallPopupMenu">@style/TextAppearance.LightTerm.PopupMenu</item>
+    </style>
+
+    <style name="ThemeOverlay.LightTerm.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.Material3.BodyMedium</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.Material3.TitleLarge</item>
+    </style>
+</resources>

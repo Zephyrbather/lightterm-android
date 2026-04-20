@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/lightTermBackground"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="0dp"
+        android:minHeight="56dp"
+        android:paddingHorizontal="8dp"
+        android:background="@drawable/bg_toolbar_shell"
+        app:menu="@menu/main_actions"
+        app:logo="@drawable/ic_lightterm_toolbar_logo"
+        app:popupTheme="@style/ThemeOverlay.LightTerm.ToolbarMenu"
+        app:titleTextColor="?attr/lightTermOnSurface"
+        app:title="@string/app_name"
+        app:titleTextAppearance="@style/Widget.LightTerm.ToolbarTitle"
+        app:titleCentered="false" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/lightTermSurface"
+        app:tabGravity="start"
+        app:tabIndicatorColor="?attr/lightTermAccent"
+        app:tabIndicatorFullWidth="false"
+        app:tabInlineLabel="true"
+        app:tabMode="scrollable"
+        app:tabRippleColor="@android:color/transparent"
+        app:tabSelectedTextColor="?attr/lightTermOnSurface"
+        app:tabTextColor="?attr/lightTermOnSurfaceVariant" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/emptyStateText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="32dp"
+            android:text="@string/empty_state"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textColor="?attr/lightTermOnSurfaceVariant" />
+    </FrameLayout>
+
+    <com.lightterm.ui.widget.VirtualKeyBarView
+        android:id="@+id/virtualKeyBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_virtual_key_bar" />
+
+</LinearLayout>

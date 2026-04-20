@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_new_session"
+        android:icon="@android:drawable/ic_menu_add"
+        android:title="@string/action_new_session"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_font_decrease"
+        android:title="@string/action_font_decrease"
+        app:showAsAction="always|withText" />
+
+    <item
+        android:id="@+id/action_font_increase"
+        android:title="@string/action_font_increase"
+        app:showAsAction="always|withText" />
+
+    <item
+        android:id="@+id/action_customize_shortcuts"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="@string/action_customize_shortcuts"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_language"
+        android:title="@string/action_language"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_theme"
+        android:title="@string/action_theme"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_manage_servers"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="@string/action_manage_servers"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_close_session"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel"
+        android:title="@string/action_close_session"
+        app:showAsAction="never" />
+</menu>

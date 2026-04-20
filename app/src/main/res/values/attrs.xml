@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="lightTermBackground" format="color" />
+    <attr name="lightTermSurface" format="color" />
+    <attr name="lightTermSurfaceAlt" format="color" />
+    <attr name="lightTermSurfaceVariant" format="color" />
+    <attr name="lightTermOnSurface" format="color" />
+    <attr name="lightTermOnSurfaceVariant" format="color" />
+    <attr name="lightTermAccent" format="color" />
+    <attr name="lightTermAccentWarm" format="color" />
+    <attr name="lightTermStatusConnected" format="color" />
+    <attr name="lightTermStatusConnecting" format="color" />
+    <attr name="lightTermStatusDisconnected" format="color" />
+    <attr name="lightTermStatusReconnecting" format="color" />
+    <attr name="lightTermDanger" format="color" />
+    <attr name="lightTermDangerContainer" format="color" />
+    <attr name="lightTermDangerOnContainer" format="color" />
+    <attr name="lightTermToolbarGradientStart" format="color" />
+    <attr name="lightTermToolbarGradientEnd" format="color" />
+    <attr name="lightTermTerminalGradientStart" format="color" />
+    <attr name="lightTermTerminalGradientEnd" format="color" />
+    <attr name="lightTermTerminalStroke" format="color" />
+    <attr name="lightTermChipFill" format="color" />
+    <attr name="lightTermChipStroke" format="color" />
+</resources>
