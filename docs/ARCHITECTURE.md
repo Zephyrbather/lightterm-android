@@ -44,9 +44,9 @@
 ### `ui`
 
 - `ui/main`
-  主界面、多标签页、主题/语言菜单、全局快捷键入口
+  主界面、多标签页、无连接首页历史记录、主题/语言菜单、全局快捷键入口
 - `ui/session`
-  单会话终端页与发送逻辑
+  单会话终端页、发送逻辑与远端文件管理
 - `ui/serverconfig`
   服务器配置编辑、排序、连通性测试
 - `ui/widget`
@@ -56,7 +56,7 @@
 
 ## 3.1 打开会话
 
-1. 用户在 `ServerConfigActivity` 或主界面选择服务器。
+1. 用户在 `ServerConfigActivity`、主界面“打开会话”或无连接首页历史记录中选择服务器。
 2. `SessionManager.openSession(server)` 根据 `server.id` 生成稳定的 `sessionId`。
 3. 若已存在同一服务器会话，则更新配置并切换到该会话。
 4. 若不存在，则创建新的 `SshSession`，开始连接并发布到 `sessionTabs`。
@@ -83,7 +83,22 @@
 - [`MinaSshTransport.kt`](../app/src/main/java/com/lightterm/core/session/MinaSshTransport.kt)
 - [`TerminalEmulator.kt`](../app/src/main/java/com/lightterm/core/terminal/TerminalEmulator.kt)
 
-## 3.3 保存服务器配置
+## 3.3 远端文件管理
+
+1. 用户在已连接会话中从主工具栏打开文件管理。
+2. `SessionFragment` 通过 `SessionViewModel` 调用 `SessionManager` 的远端目录、文本文件和上传下载接口。
+3. `SshSession` 将请求转发给底层 SSH/SFTP 传输层执行。
+4. 文件管理弹层根据目录列表、最近访问记录和排序方式刷新 UI。
+
+涉及文件：
+
+- [`SessionFragment.kt`](../app/src/main/java/com/lightterm/ui/session/SessionFragment.kt)
+- [`SessionViewModel.kt`](../app/src/main/java/com/lightterm/ui/session/SessionViewModel.kt)
+- [`SessionManager.kt`](../app/src/main/java/com/lightterm/core/session/SessionManager.kt)
+- [`SshSession.kt`](../app/src/main/java/com/lightterm/core/session/SshSession.kt)
+- [`MinaSshTransport.kt`](../app/src/main/java/com/lightterm/core/session/MinaSshTransport.kt)
+
+## 3.4 保存服务器配置
 
 1. `ServerConfigViewModel` 聚合表单状态、服务器列表和应用设置。
 2. 保存时先做表单校验，再调用 `ServerRepository.saveServer(...)`。

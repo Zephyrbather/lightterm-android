@@ -9,6 +9,7 @@ import com.lightterm.domain.model.AuthenticationMode
 import com.lightterm.domain.model.ServerConfig
 import java.io.File
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,8 @@ import org.apache.sshd.client.session.forward.ExplicitPortForwardingTracker
 import org.apache.sshd.common.channel.PtyChannelConfiguration
 import org.apache.sshd.common.channel.PtyMode
 import org.apache.sshd.common.util.net.SshdSocketAddress
+import org.apache.sshd.sftp.client.SftpClient
+import org.apache.sshd.sftp.client.SftpClientFactory
 
 class MinaSshTransport(
     private val credentialStore: SecureCredentialStore,
@@ -272,7 +275,7 @@ class MinaSshTransport(
         }
     }
 
-    private class MinaConnectedShell(
+    private inner class MinaConnectedShell(
         private val client: SshClient,
         private val session: ClientSession,
         private val channel: ChannelShell,
@@ -304,6 +307,121 @@ class MinaSshTransport(
             // transport-neutral and relies on session-level timers for future extension.
         }
 
+        override suspend fun listDirectory(path: String?): RemoteDirectoryListing = withSftpClient { sftp ->
+            val homePath = sftp.canonicalPath(".")
+            val resolvedPath = sftp.canonicalPath(path?.takeIf { it.isNotBlank() } ?: homePath)
+            val directoryAttributes = sftp.stat(resolvedPath)
+            ensureDirectory(attributes = directoryAttributes, path = resolvedPath)
+
+            val entries = sftp.readDir(resolvedPath)
+                .asSequence()
+                .filter { entry -> entry.filename !in setOf(".", "..") }
+                .map { entry ->
+                    val attributes = entry.attributes
+                    RemoteFileEntry(
+                        name = entry.filename,
+                        path = remoteChildPath(resolvedPath, entry.filename),
+                        kind = when {
+                            attributes.isDirectory -> RemoteFileKind.DIRECTORY
+                            attributes.isSymbolicLink -> RemoteFileKind.SYMLINK
+                            else -> RemoteFileKind.FILE
+                        },
+                        sizeBytes = attributes.size,
+                        modifiedAtEpochMs = attributes.modifyTime?.toMillis(),
+                    )
+                }
+                .toList()
+
+            RemoteDirectoryListing(
+                homePath = homePath,
+                currentPath = resolvedPath,
+                entries = sortRemoteFileEntries(entries),
+            )
+        }
+
+        override suspend fun readTextFile(path: String): RemoteTextFile = withSftpClient { sftp ->
+            val resolvedPath = sftp.canonicalPath(path)
+            val attributes = sftp.stat(resolvedPath)
+            ensureRegularFile(attributes = attributes, path = resolvedPath)
+
+            val bytes = sftp.read(resolvedPath).use { input ->
+                readLimitedBytes(
+                    source = input,
+                    maxBytes = MAX_INLINE_TEXT_FILE_BYTES,
+                    tooLargeMessage = message(R.string.file_manager_error_too_large),
+                )
+            }
+            val content = decodeEditableUtf8Text(
+                bytes = bytes,
+                binaryMessage = message(R.string.file_manager_error_binary),
+            )
+
+            RemoteTextFile(
+                name = remoteBaseName(resolvedPath),
+                path = resolvedPath,
+                content = content,
+                sizeBytes = attributes.size,
+                modifiedAtEpochMs = attributes.modifyTime?.toMillis(),
+            )
+        }
+
+        override suspend fun writeTextFile(path: String, content: String) {
+            withSftpClient { sftp ->
+                val resolvedPath = sftp.canonicalPath(path)
+                val attributes = sftp.stat(resolvedPath)
+                ensureRegularFile(attributes = attributes, path = resolvedPath)
+
+                sftp.write(
+                    resolvedPath,
+                    SftpClient.OpenMode.Write,
+                    SftpClient.OpenMode.Create,
+                    SftpClient.OpenMode.Truncate,
+                ).use { output ->
+                    output.write(content.toByteArray(StandardCharsets.UTF_8))
+                    output.flush()
+                }
+            }
+        }
+
+        override suspend fun uploadFile(
+            remoteDirectoryPath: String,
+            remoteFileName: String,
+            source: InputStream,
+        ) {
+            withSftpClient { sftp ->
+                val resolvedDirectoryPath = sftp.canonicalPath(remoteDirectoryPath)
+                val directoryAttributes = sftp.stat(resolvedDirectoryPath)
+                ensureDirectory(attributes = directoryAttributes, path = resolvedDirectoryPath)
+
+                val remoteFilePath = remoteChildPath(resolvedDirectoryPath, remoteFileName)
+                sftp.write(
+                    remoteFilePath,
+                    SftpClient.OpenMode.Write,
+                    SftpClient.OpenMode.Create,
+                    SftpClient.OpenMode.Truncate,
+                ).use { output ->
+                    source.copyTo(output)
+                    output.flush()
+                }
+            }
+        }
+
+        override suspend fun downloadFile(
+            remoteFilePath: String,
+            sink: OutputStream,
+        ) {
+            withSftpClient { sftp ->
+                val resolvedPath = sftp.canonicalPath(remoteFilePath)
+                val attributes = sftp.stat(resolvedPath)
+                ensureRegularFile(attributes = attributes, path = resolvedPath)
+
+                sftp.read(resolvedPath).use { input ->
+                    input.copyTo(sink)
+                }
+                sink.flush()
+            }
+        }
+
         override suspend fun close() {
             withContext(Dispatchers.IO) {
                 runCatching { channel.close(false) }
@@ -315,6 +433,32 @@ class MinaSshTransport(
                     runCatching { jumpSession.close(false) }
                 }
                 runCatching { client.stop() }
+            }
+        }
+
+        private suspend fun <T> withSftpClient(
+            block: (SftpClient) -> T,
+        ): T = withContext(Dispatchers.IO) {
+            SftpClientFactory.instance().createSftpClient(session).use { sftpClient ->
+                block(sftpClient)
+            }
+        }
+
+        private fun ensureDirectory(
+            attributes: SftpClient.Attributes,
+            path: String,
+        ) {
+            if (!attributes.isDirectory) {
+                throw IllegalStateException(message(R.string.file_manager_error_not_directory, path))
+            }
+        }
+
+        private fun ensureRegularFile(
+            attributes: SftpClient.Attributes,
+            path: String,
+        ) {
+            if (attributes.isDirectory) {
+                throw IllegalStateException(message(R.string.file_manager_error_is_directory, path))
             }
         }
     }

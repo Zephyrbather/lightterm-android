@@ -18,6 +18,12 @@
         app:showAsAction="always|withText" />
 
     <item
+        android:id="@+id/action_file_manager"
+        android:icon="@drawable/ic_folder_files_24"
+        android:title="@string/session_action_file_manager"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/action_customize_shortcuts"
         android:icon="@android:drawable/ic_menu_edit"
         android:title="@string/action_customize_shortcuts"

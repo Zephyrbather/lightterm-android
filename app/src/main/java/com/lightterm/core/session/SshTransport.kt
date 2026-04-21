@@ -2,6 +2,8 @@ package com.lightterm.core.session
 
 import com.lightterm.core.device.DeviceProfile
 import com.lightterm.domain.model.ServerConfig
+import java.io.InputStream
+import java.io.OutputStream
 import kotlinx.coroutines.CoroutineScope
 
 interface SshTransport {
@@ -25,6 +27,20 @@ interface SshTransport {
         suspend fun write(input: String)
         suspend fun resize(columns: Int, rows: Int)
         suspend fun keepAlive()
+        suspend fun listDirectory(path: String? = null): RemoteDirectoryListing
+        suspend fun readTextFile(path: String): RemoteTextFile
+        suspend fun writeTextFile(path: String, content: String)
+        suspend fun uploadFile(
+            remoteDirectoryPath: String,
+            remoteFileName: String,
+            source: InputStream,
+        )
+
+        suspend fun downloadFile(
+            remoteFilePath: String,
+            sink: OutputStream,
+        )
+
         suspend fun close()
     }
 }

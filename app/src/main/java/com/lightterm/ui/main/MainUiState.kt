@@ -10,6 +10,7 @@ import com.lightterm.domain.model.VirtualKey
 
 data class MainUiState(
     val availableServers: List<ServerConfig> = emptyList(),
+    val recentServers: List<ServerConfig> = emptyList(),
     val sessionTabs: List<SessionTabUiModel> = emptyList(),
     val activeSessionId: String? = null,
     val shortcuts: List<VirtualKey> = VirtualKey.defaults(),

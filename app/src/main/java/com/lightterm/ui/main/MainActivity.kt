@@ -2,14 +2,17 @@ package com.lightterm.ui.main
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
@@ -22,6 +25,7 @@ import com.lightterm.databinding.DialogShortcutEditorBinding
 import com.lightterm.databinding.ItemShortcutEditorBinding
 import com.lightterm.domain.model.SessionConnectionState
 import com.lightterm.domain.model.VirtualKey
+import com.lightterm.ui.session.SessionFragment
 import com.lightterm.ui.serverconfig.ServerConfigActivity
 import com.lightterm.ui.theme.resolveThemeColor
 import kotlinx.coroutines.flow.collect
@@ -30,6 +34,7 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var pagerAdapter: SessionPagerAdapter
+    private lateinit var recentServerAdapter: RecentServerAdapter
     private var tabMediator: TabLayoutMediator? = null
 
     private val viewModel: MainViewModel by viewModels {
@@ -46,7 +51,12 @@ class MainActivity : AppCompatActivity() {
         binding.toolbar.overflowIcon?.setTint(resolveThemeColor(R.attr.lightTermOnSurfaceVariant))
 
         pagerAdapter = SessionPagerAdapter(this)
+        recentServerAdapter = RecentServerAdapter { server ->
+            viewModel.openServer(server.id)
+        }
         binding.viewPager.adapter = pagerAdapter
+        binding.recentHistoryList.layoutManager = LinearLayoutManager(this)
+        binding.recentHistoryList.adapter = recentServerAdapter
         binding.virtualKeyBar.bindKeys(
             keys = viewModel.uiState.value.shortcuts,
             compactMode = viewModel.uiState.value.deviceProfile.compactKeyboard,
@@ -80,6 +90,15 @@ class MainActivity : AppCompatActivity() {
 
                 R.id.action_font_increase -> {
                     viewModel.increaseTerminalFont()
+                    true
+                }
+
+                R.id.action_file_manager -> {
+                    val activeSessionId = viewModel.uiState.value.activeSessionId ?: return@setOnMenuItemClickListener true
+                    supportFragmentManager.setFragmentResult(
+                        SessionFragment.REQUEST_KEY_OPEN_FILE_MANAGER,
+                        bundleOf(SessionFragment.RESULT_KEY_SESSION_ID to activeSessionId),
+                    )
                     true
                 }
 
@@ -148,19 +167,35 @@ class MainActivity : AppCompatActivity() {
         binding.emptyStateText.isVisible = state.sessionTabs.isEmpty()
         binding.viewPager.isVisible = state.sessionTabs.isNotEmpty()
         binding.tabLayout.isVisible = state.sessionTabs.isNotEmpty()
+        binding.emptyStateContainer.isVisible = state.sessionTabs.isEmpty()
+
+        val showRecentHistory = state.sessionTabs.isEmpty() && state.recentServers.isNotEmpty()
+        recentServerAdapter.submitList(state.recentServers)
+        binding.recentHistorySection.isVisible = showRecentHistory
+        binding.emptyStateContainer.gravity = if (showRecentHistory) {
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        } else {
+            Gravity.CENTER
+        }
 
         val activeIndex = state.sessionTabs.indexOfFirst { it.sessionId == state.activeSessionId }
         if (activeIndex >= 0 && binding.viewPager.currentItem != activeIndex) {
             binding.viewPager.setCurrentItem(activeIndex, false)
         }
 
-        binding.emptyStateText.text = if (state.availableServers.isEmpty()) {
-            getString(R.string.empty_state_no_server)
-        } else {
-            getString(R.string.empty_state)
+        binding.emptyStateText.text = when {
+            state.availableServers.isEmpty() -> getString(R.string.empty_state_no_server)
+            showRecentHistory -> getString(R.string.home_recent_empty_state)
+            else -> getString(R.string.empty_state)
         }
         binding.toolbar.menu.findItem(R.id.action_font_decrease)?.isEnabled = state.appSettings.canDecreaseFont
         binding.toolbar.menu.findItem(R.id.action_font_increase)?.isEnabled = state.appSettings.canIncreaseFont
+        val activeTab = state.sessionTabs.firstOrNull { it.sessionId == state.activeSessionId }
+        binding.toolbar.menu.findItem(R.id.action_file_manager)?.apply {
+            isVisible = activeTab != null
+            isEnabled = activeTab?.state == SessionConnectionState.CONNECTED
+            icon?.setTint(resolveThemeColor(R.attr.lightTermOnSurfaceVariant))
+        }
         binding.toolbar.menu.findItem(R.id.action_language)?.title = languageMenuTitle()
         binding.toolbar.menu.findItem(R.id.action_theme)?.title = themeMenuTitle()
     }

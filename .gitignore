@@ -5,6 +5,7 @@
 *.iml
 build/
 app/build/
+dist/
 captures/
 local.properties
 *.apk

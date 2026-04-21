@@ -1,6 +1,6 @@
 # LightTerm
 
-LightTerm 是一个原生 Android SSH 客户端实验项目，聚焦多会话管理、终端渲染、服务器配置保存、跳板机链路和移动端快捷交互。
+LightTerm 是一个原生 Android SSH 客户端实验项目，聚焦多会话管理、终端渲染、服务器配置保存、跳板机链路、远端文件操作和移动端快捷交互。
 
 ## 项目声明
 
@@ -15,7 +15,9 @@ LightTerm 是一个原生 Android SSH 客户端实验项目，聚焦多会话管
 - 认证方式：密码认证、公钥认证
 - 跳板机支持：多跳配置保存与连接测试
 - 服务器管理：保存、编辑、删除、排序、最近使用
+- 首页空态：无连接时展示最近打开终端历史，可一键重连
 - 终端体验：环形缓冲区、自定义终端视图、字体缩放、快捷键条
+- 远端文件管理：目录浏览、文本文件查看/修改、上传、下载、排序、最近访问
 - 稳定性能力：断线重连、前后台心跳、延迟展示
 - 个性化：纯黑、纯白、系统色主题，中英文切换
 - 演示模式：`PreviewSshTransport`
@@ -52,14 +54,14 @@ LightTerm 是一个原生 Android SSH 客户端实验项目，聚焦多会话管
 
 - 直接从 GitHub Releases 下载压缩包：
   `https://github.com/Zephyrbather/lightterm-android/releases`
-- 解压后得到 `LightTerm-debug.apk`
+- 解压后得到 `LightTerm-release.apk`
 
 ### 2. 安装到 Android 设备
 
 使用 `adb` 安装：
 
 ```bash
-adb install -r LightTerm-debug.apk
+adb install -r LightTerm-release.apk
 ```
 
 或将 APK 传到手机后手动安装。
@@ -69,8 +71,9 @@ adb install -r LightTerm-debug.apk
 1. 打开右上角菜单，进入“服务器配置”。
 2. 新建或编辑服务器，填写主机、端口、用户名和认证方式。
 3. 如需跳板机，开启跳板链路并逐跳填写配置。
-4. 保存后回到主界面，使用“打开会话”建立连接。
+4. 保存后回到主界面，可使用“打开会话”，也可在无连接首页直接点击历史打开终端重新连接。
 5. 在会话页通过底部输入框、发送按钮和虚拟快捷键条操作终端。
+6. 连接建立后可从工具栏打开远端文件管理，浏览目录、编辑文本和收发文件。
 
 ## 本地开发与编译
 
@@ -91,6 +94,12 @@ adb install -r LightTerm-debug.apk
 ./gradlew assembleDebug
 ```
 
+构建 Release 包：
+
+```bash
+./gradlew assembleRelease
+```
+
 运行单元测试：
 
 ```bash
@@ -100,18 +109,20 @@ adb install -r LightTerm-debug.apk
 本地安装到已连接设备：
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ## 部署与发布
 
 - 构建与发布步骤见：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- 当前仓库通过 GitHub Release 分发压缩后的 APK 资产
-- Release 资产目前为调试构建，主要用于体验与演示
+- 当前仓库通过 GitHub Release 分发压缩后的 release APK 资产
+- 当前 release 构建默认使用 debug keystore 签名，便于实验性分发；正式发布前应替换为私有签名
 
 ## 当前状态
 
 - 已完成多会话 SSH 主链路、服务器配置保存、跳板机、主题与语言切换、快捷键条、终端缩放、连通性测试
+- 已完成首页历史打开终端入口和无连接空态快速重连
+- 已完成远端文件管理、文本文件查看/修改、文件上传下载
 - 已修复活跃会话页切换主题/语言时的生命周期崩溃
 - 已修复 `Send` 与输入法发送的重复提交问题
 

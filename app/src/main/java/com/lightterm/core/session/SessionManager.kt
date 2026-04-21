@@ -4,6 +4,8 @@ import com.lightterm.R
 import com.lightterm.core.device.DeviceProfile
 import com.lightterm.domain.model.PowerMode
 import com.lightterm.domain.model.ServerConfig
+import java.io.InputStream
+import java.io.OutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -140,6 +142,45 @@ class SessionManager(
         sessions[sessionId]?.refresh()
     }
 
+    suspend fun listRemoteDirectory(
+        sessionId: String,
+        path: String? = null,
+    ): RemoteDirectoryListing {
+        return requireSession(sessionId).listRemoteDirectory(path)
+    }
+
+    suspend fun readRemoteTextFile(
+        sessionId: String,
+        path: String,
+    ): RemoteTextFile {
+        return requireSession(sessionId).readRemoteTextFile(path)
+    }
+
+    suspend fun writeRemoteTextFile(
+        sessionId: String,
+        path: String,
+        content: String,
+    ) {
+        requireSession(sessionId).writeRemoteTextFile(path, content)
+    }
+
+    suspend fun uploadRemoteFile(
+        sessionId: String,
+        remoteDirectoryPath: String,
+        remoteFileName: String,
+        source: InputStream,
+    ) {
+        requireSession(sessionId).uploadRemoteFile(remoteDirectoryPath, remoteFileName, source)
+    }
+
+    suspend fun downloadRemoteFile(
+        sessionId: String,
+        remoteFilePath: String,
+        sink: OutputStream,
+    ) {
+        requireSession(sessionId).downloadRemoteFile(remoteFilePath, sink)
+    }
+
     fun hasSession(serverId: Long): Boolean = sessions.containsKey("server-$serverId")
 
     fun updateServerConfig(server: ServerConfig) {
@@ -164,4 +205,9 @@ class SessionManager(
         resId: Int,
         vararg args: Any,
     ): String = messageResolver(resId, args)
+
+    private fun requireSession(sessionId: String): SshSession {
+        return sessions[sessionId]
+            ?: throw IllegalStateException(message(R.string.session_status_closed))
+    }
 }

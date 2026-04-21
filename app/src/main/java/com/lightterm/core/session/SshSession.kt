@@ -6,6 +6,8 @@ import com.lightterm.core.terminal.TerminalEmulator
 import com.lightterm.domain.model.PowerMode
 import com.lightterm.domain.model.ServerConfig
 import com.lightterm.domain.model.SessionConnectionState
+import java.io.InputStream
+import java.io.OutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -81,6 +83,36 @@ class SshSession(
 
     fun refresh() {
         requestManualRestart(clearTerminal = true)
+    }
+
+    suspend fun listRemoteDirectory(path: String? = null): RemoteDirectoryListing {
+        return requireConnectedShell().listDirectory(path)
+    }
+
+    suspend fun readRemoteTextFile(path: String): RemoteTextFile {
+        return requireConnectedShell().readTextFile(path)
+    }
+
+    suspend fun writeRemoteTextFile(
+        path: String,
+        content: String,
+    ) {
+        requireConnectedShell().writeTextFile(path, content)
+    }
+
+    suspend fun uploadRemoteFile(
+        remoteDirectoryPath: String,
+        remoteFileName: String,
+        source: InputStream,
+    ) {
+        requireConnectedShell().uploadFile(remoteDirectoryPath, remoteFileName, source)
+    }
+
+    suspend fun downloadRemoteFile(
+        remoteFilePath: String,
+        sink: OutputStream,
+    ) {
+        requireConnectedShell().downloadFile(remoteFilePath, sink)
     }
 
     fun send(input: String, appendNewLine: Boolean) {
@@ -358,4 +390,9 @@ class SshSession(
         resId: Int,
         vararg args: Any,
     ): String = messageResolver(resId, args)
+
+    private fun requireConnectedShell(): SshTransport.ConnectedShell {
+        return connectedShell
+            ?: throw IllegalStateException(message(R.string.file_manager_error_unavailable))
+    }
 }

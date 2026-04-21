@@ -10,7 +10,9 @@ import com.lightterm.data.repository.AppSettingsRepository
 import com.lightterm.data.repository.ServerRepository
 import com.lightterm.data.repository.sortedForDisplay
 import com.lightterm.data.repository.VirtualKeyRepository
+import com.lightterm.domain.model.ServerConfig
 import com.lightterm.domain.model.VirtualKey
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +38,7 @@ class MainViewModel(
         val sortedServers = servers.sortedForDisplay(appSettings.serverSortOrder)
         MainUiState(
             availableServers = sortedServers,
+            recentServers = servers.recentlyOpenedForHome(limit = HOME_HISTORY_LIMIT),
             sessionTabs = tabs,
             activeSessionId = activeSessionId,
             shortcuts = shortcuts,
@@ -68,6 +71,13 @@ class MainViewModel(
             openServerCursor = (openServerCursor + 1) % servers.size
             val usedServer = repository.markUsed(targetServer.id) ?: targetServer
             sessionManager.openSession(usedServer)
+        }
+    }
+
+    fun openServer(serverId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val server = repository.markUsed(serverId) ?: repository.getServer(serverId) ?: return@launch
+            sessionManager.openSession(server)
         }
     }
 
@@ -139,4 +149,20 @@ class MainViewModel(
             ) as T
         }
     }
+
+    private companion object {
+        const val HOME_HISTORY_LIMIT = 5
+    }
+}
+
+private fun List<ServerConfig>.recentlyOpenedForHome(limit: Int): List<ServerConfig> {
+    return asSequence()
+        .filter { it.lastUsedAtEpochMillis > 0L }
+        .sortedWith(
+            compareByDescending<ServerConfig> { it.lastUsedAtEpochMillis }
+                .thenBy { it.alias.lowercase(Locale.getDefault()) }
+                .thenBy { it.id },
+        )
+        .take(limit)
+        .toList()
 }
