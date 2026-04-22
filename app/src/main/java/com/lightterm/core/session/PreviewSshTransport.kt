@@ -25,14 +25,7 @@ class PreviewSshTransport(
         val fileSystem = PreviewRemoteFileSystem()
         listener.onConnected(message(R.string.session_status_preview_connected))
         listener.onLatencyMeasured(12)
-        listener.onOutput(
-            buildString {
-                appendLine("LightTerm Preview Shell")
-                appendLine("Connected to ${config.alias} (${config.targetLabel()})")
-                appendLine("Type `help` to inspect preview commands.")
-                append(previewPrompt(config, fileSystem.homePath))
-            },
-        )
+        listener.onOutput(previewPrompt())
         return PreviewConnectedShell(
             config = config,
             listener = listener,
@@ -52,7 +45,7 @@ class PreviewSshTransport(
         override suspend fun write(input: String) {
             when (input) {
                 previewVirtualKeys.getValue("ctrl").sequence -> {
-                    listener.onOutput("^C\n${previewPrompt(config, currentDirectory)}")
+                    listener.onOutput("^C\n${previewPrompt()}")
                     return
                 }
 
@@ -73,7 +66,7 @@ class PreviewSshTransport(
                 .filter { it.isNotEmpty() }
 
             if (commands.isEmpty()) {
-                listener.onOutput(previewPrompt(config, currentDirectory))
+                listener.onOutput(previewPrompt())
                 return
             }
 
@@ -85,7 +78,7 @@ class PreviewSshTransport(
                 } else if (output.isNotBlank()) {
                     listener.onOutput("$output\n")
                 }
-                listener.onOutput(previewPrompt(config, currentDirectory))
+                listener.onOutput(previewPrompt())
             }
         }
 
@@ -367,6 +360,6 @@ private class PreviewRemoteFileSystem {
     }
 }
 
-private fun previewPrompt(config: ServerConfig, currentDirectory: String): String {
-    return "${config.username}@${config.host}:$currentDirectory$ "
+private fun previewPrompt(): String {
+    return "$ "
 }

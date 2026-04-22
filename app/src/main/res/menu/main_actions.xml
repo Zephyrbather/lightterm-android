@@ -30,6 +30,21 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_command_templates"
+        android:title="@string/action_command_templates"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_history_search"
+        android:title="@string/action_history_search"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_command_bar"
+        android:title="@string/action_command_bar"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_language"
         android:title="@string/action_language"
         app:showAsAction="never" />

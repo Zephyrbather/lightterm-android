@@ -67,7 +67,7 @@ data class AppSettings(
         get() = terminalFontSizeSp > MIN_TERMINAL_FONT_SP
 
     companion object {
-        const val MIN_TERMINAL_FONT_SP = 11f
+        const val MIN_TERMINAL_FONT_SP = 8f
         const val MAX_TERMINAL_FONT_SP = 22f
         const val TERMINAL_FONT_STEP_SP = 1f
         const val LANGUAGE_ZH = "zh"
@@ -150,7 +150,7 @@ class AppSettingsRepository(
 
         val updated = current.copy(terminalFontSizeSp = updatedFont)
         _settings.value = updated
-        preferences.edit().putFloat(KEY_TERMINAL_FONT_SP, updatedFont).apply()
+        preferences.edit().putFloat(KEY_TERMINAL_FONT_SP, updatedFont).commit()
     }
 
     private fun loadSettings(defaultFontSizeSp: Float): AppSettings {
@@ -160,7 +160,7 @@ class AppSettingsRepository(
                 AppSettings.MIN_TERMINAL_FONT_SP,
                 AppSettings.MAX_TERMINAL_FONT_SP,
             ),
-        )
+        ).coerceIn(AppSettings.MIN_TERMINAL_FONT_SP, AppSettings.MAX_TERMINAL_FONT_SP)
         val languageTag = preferences.getString(KEY_LANGUAGE_TAG, AppSettings.LANGUAGE_ZH)
             ?: AppSettings.LANGUAGE_ZH
         val themeMode = AppThemeMode.fromStorage(preferences.getString(KEY_THEME_MODE, null))

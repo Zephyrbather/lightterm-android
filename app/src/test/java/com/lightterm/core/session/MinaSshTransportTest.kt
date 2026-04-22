@@ -2,6 +2,7 @@ package com.lightterm.core.session
 
 import org.apache.sshd.common.util.net.SshdSocketAddress
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MinaSshTransportTest {
@@ -20,5 +21,15 @@ class MinaSshTransportTest {
         resolvePortForwardConnectTarget(
             SshdSocketAddress(SshdSocketAddress.LOCALHOST_NAME, 0),
         )
+    }
+
+    @Test
+    fun `buildShellPromptInitCommand sets simple prompt and clears screen`() {
+        val command = buildShellPromptInitCommand()
+
+        assertTrue(command.contains("PS1='$ '"))
+        assertTrue(command.contains("PROMPT='$ '"))
+        assertTrue(command.contains("\\033[2J\\033[H"))
+        assertTrue(command.endsWith("\r"))
     }
 }

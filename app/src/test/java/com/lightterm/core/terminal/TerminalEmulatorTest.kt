@@ -14,12 +14,12 @@ class TerminalEmulatorTest {
     }
 
     @Test
-    fun appendText_treatsBareCarriageReturnAsReadableLineAdvance() {
+    fun appendText_treatsBareCarriageReturnAsLineOverwrite() {
         val emulator = TerminalEmulator(maxLines = 32, timeProvider = { 0L })
 
         emulator.appendText("first\rsecond")
 
-        assertEquals(listOf("first", "second"), emulator.snapshot().lines)
+        assertEquals(listOf("second"), emulator.snapshot().lines)
     }
 
     @Test
@@ -38,5 +38,41 @@ class TerminalEmulatorTest {
         emulator.appendText("\u001b]0;remote-title\u0007pwd\r\n")
 
         assertEquals(listOf("pwd"), emulator.snapshot().lines)
+    }
+
+    @Test
+    fun appendText_handlesLineClearAfterCarriageReturn() {
+        val emulator = TerminalEmulator(maxLines = 32, timeProvider = { 0L })
+
+        emulator.appendText("Working 100%\r\u001b[KDone")
+
+        assertEquals(listOf("Done"), emulator.snapshot().lines)
+    }
+
+    @Test
+    fun appendText_handlesFullLineClearAndCursorResetSequences() {
+        val emulator = TerminalEmulator(maxLines = 32, timeProvider = { 0L })
+
+        emulator.appendText("Working 100%\u001b[2K\u001b[1GDone")
+
+        assertEquals(listOf("Done"), emulator.snapshot().lines)
+    }
+
+    @Test
+    fun appendText_treatsBackspaceAsCursorMoveInsteadOfDelete() {
+        val emulator = TerminalEmulator(maxLines = 32, timeProvider = { 0L })
+
+        emulator.appendText("abc\bX")
+
+        assertEquals(listOf("abX"), emulator.snapshot().lines)
+    }
+
+    @Test
+    fun appendText_handlesCursorUpAndRewriteAcrossLines() {
+        val emulator = TerminalEmulator(maxLines = 32, timeProvider = { 0L })
+
+        emulator.appendText("line1\nline2\u001b[1A\u001b[2K\u001b[1Gdone")
+
+        assertEquals(listOf("done", "line2"), emulator.snapshot().lines)
     }
 }

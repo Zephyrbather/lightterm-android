@@ -12,6 +12,9 @@ import com.lightterm.core.session.SessionManager
 import com.lightterm.core.session.SshTransportFactory
 import com.lightterm.data.local.LightTermDatabase
 import com.lightterm.data.repository.AppSettingsRepository
+import com.lightterm.data.repository.CommandHistoryRepository
+import com.lightterm.data.repository.CommandTemplateRepository
+import com.lightterm.data.repository.RemoteFileHistoryRepository
 import com.lightterm.data.repository.ServerRepository
 import com.lightterm.data.repository.VirtualKeyRepository
 import com.lightterm.data.security.SecureCredentialStore
@@ -62,6 +65,9 @@ class AppContainer(context: Context) {
         sshKeyManager = sshKeyManager,
     )
     val virtualKeyRepository = VirtualKeyRepository(appContext)
+    val commandTemplateRepository = CommandTemplateRepository(appContext)
+    val commandHistoryRepository = CommandHistoryRepository(appContext)
+    val remoteFileHistoryRepository = RemoteFileHistoryRepository(appContext)
     val sessionManager = SessionManager(
         transportFactory = SshTransportFactory(
             secureCredentialStore,

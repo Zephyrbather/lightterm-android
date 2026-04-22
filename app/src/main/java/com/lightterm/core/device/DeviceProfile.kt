@@ -32,16 +32,15 @@ data class DeviceProfile(
         fun generic(): DeviceProfile = DeviceProfile(
             name = "通用 Android 配置",
             maxRefreshRateHz = 60,
-            terminalFontSizeSp = 13f,
+            terminalFontSizeSp = 12f,
             offscreenPageLimit = 1,
             compactKeyboard = false,
             keepAliveForegroundSeconds = 20,
             keepAliveBackgroundSeconds = 50,
             activeRenderIntervalMs = 16L,
             idleRenderIntervalMs = 40L,
-            ringBufferLineLimit = 1000,
+            ringBufferLineLimit = 4000,
             prewarmAdjacentTabs = false,
         )
     }
 }
-

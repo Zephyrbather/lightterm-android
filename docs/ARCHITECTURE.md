@@ -70,7 +70,7 @@
 
 ## 3.2 SSH 输入输出
 
-1. `SessionFragment` 接收输入框发送、IME 发送或快捷键条事件。
+1. `SessionFragment` 接收终端视图直接输入、IME 输入或快捷键条事件。
 2. 命令通过 `SessionViewModel` 转发到 `SessionManager.sendToSession(...)`。
 3. `SshSession.send(...)` 负责补齐换行并写入 `ConnectedShell`。
 4. 传输层输出由监听器回流到 `TerminalEmulator`。

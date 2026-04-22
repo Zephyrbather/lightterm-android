@@ -60,6 +60,7 @@ class MinaSshTransport(
             val disconnected = AtomicBoolean(false)
             startPump(scope, channel.invertedOut, listener, disconnected)
             startPump(scope, channel.invertedErr, listener, disconnected)
+            initializeShellPrompt(channel)
 
             listener.onConnected("SSHv2")
             listener.onLatencyMeasured(System.currentTimeMillis() - startedAt)
@@ -272,6 +273,13 @@ class MinaSshTransport(
                     listener.onDisconnected(message(R.string.session_status_remote_closed))
                 }
             }
+        }
+    }
+
+    private fun initializeShellPrompt(channel: ChannelShell) {
+        runCatching {
+            channel.invertedIn.write(buildShellPromptInitCommand().toByteArray(StandardCharsets.UTF_8))
+            channel.invertedIn.flush()
         }
     }
 
@@ -533,4 +541,8 @@ internal fun resolvePortForwardConnectTarget(boundAddress: SshdSocketAddress): S
         ?: SshdSocketAddress.LOCALHOST_NAME
 
     return SshdSocketAddress(host, port)
+}
+
+internal fun buildShellPromptInitCommand(): String {
+    return "PROMPT_COMMAND=; export PS1='$ '; PS1='$ '; PROMPT='$ '; printf '\\033[2J\\033[H'\r"
 }

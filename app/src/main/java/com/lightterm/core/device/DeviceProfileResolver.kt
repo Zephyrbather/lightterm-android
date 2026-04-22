@@ -22,14 +22,14 @@ class DeviceProfileResolver {
             DeviceProfile(
                 name = "vivo X300 专项配置",
                 maxRefreshRateHz = 120,
-                terminalFontSizeSp = 12.5f,
+                terminalFontSizeSp = 11.5f,
                 offscreenPageLimit = 2,
                 compactKeyboard = true,
                 keepAliveForegroundSeconds = 15,
                 keepAliveBackgroundSeconds = 40,
                 activeRenderIntervalMs = 8L,
                 idleRenderIntervalMs = 32L,
-                ringBufferLineLimit = 1000,
+                ringBufferLineLimit = 4000,
                 prewarmAdjacentTabs = true,
             )
         } else {

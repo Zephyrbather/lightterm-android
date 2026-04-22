@@ -15,7 +15,7 @@ data class MainUiState(
     val activeSessionId: String? = null,
     val shortcuts: List<VirtualKey> = VirtualKey.defaults(),
     val appSettings: AppSettings = AppSettings(
-        terminalFontSizeSp = 13f,
+        terminalFontSizeSp = 12f,
         languageTag = AppSettings.LANGUAGE_ZH,
         themeMode = AppThemeMode.PURE_BLACK,
         serverSortOrder = ServerSortOrder.RECENTLY_USED,

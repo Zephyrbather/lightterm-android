@@ -55,7 +55,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 mkdir -p dist
 cp app/build/outputs/apk/release/app-release.apk dist/LightTerm-release.apk
 cd dist
-zip -r lightterm-android-v0.1.1-release.zip LightTerm-release.apk
+zip -r lightterm-android-v0.1.2-release.zip LightTerm-release.apk
 ```
 
 生成的压缩包可直接作为 Release 资产上传。
@@ -65,21 +65,21 @@ zip -r lightterm-android-v0.1.1-release.zip LightTerm-release.apk
 示例命令：
 
 ```bash
-gh release create v0.1.1 \
-  dist/lightterm-android-v0.1.1-release.zip \
-  --title "LightTerm v0.1.1" \
-  --notes "包含首页历史快速重连、远端文件管理和压缩后的 release APK。当前为实验性发布，release 构建使用 debug keystore 签名。"
+gh release create v0.1.2 \
+  dist/lightterm-android-v0.1.2-release.zip \
+  --title "LightTerm v0.1.2" \
+  --notes "包含命令模板、历史搜索、远端文件管理增强、终端刷新修复、默认直输终端与可选命令栏等改进。当前为实验性发布，release 构建使用 debug keystore 签名。"
 ```
 
 如果 Release 已存在，可上传或替换资产：
 
 ```bash
-gh release upload v0.1.1 dist/lightterm-android-v0.1.1-release.zip --clobber
+gh release upload v0.1.2 dist/lightterm-android-v0.1.2-release.zip --clobber
 ```
 
 ## 5. 用户下载与安装
 
 1. 打开仓库 Releases 页面。
-2. 下载 `lightterm-android-v0.1.1-release.zip`。
+2. 下载 `lightterm-android-v0.1.2-release.zip`。
 3. 解压得到 `LightTerm-release.apk`。
 4. 手动安装或使用 `adb install -r LightTerm-release.apk`。

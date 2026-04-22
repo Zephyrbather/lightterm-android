@@ -6,28 +6,37 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.os.SystemClock
 import android.provider.OpenableColumns
+import android.text.InputType
 import android.text.format.Formatter
 import android.view.ContextThemeWrapper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.GridLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.lightterm.R
 import com.lightterm.appContainer
+import com.lightterm.databinding.DialogCommandTemplateBinding
+import com.lightterm.databinding.DialogHistorySearchBinding
 import com.lightterm.core.session.RemoteDirectoryListing
 import com.lightterm.core.session.RemoteFileEntry
 import com.lightterm.core.session.RemoteFileKind
@@ -36,8 +45,14 @@ import com.lightterm.core.session.remoteParentPath
 import com.lightterm.databinding.DialogRemoteFileEditorBinding
 import com.lightterm.databinding.DialogRemoteFileManagerBinding
 import com.lightterm.databinding.FragmentSessionBinding
+import com.lightterm.databinding.ItemCommandHistoryBinding
+import com.lightterm.databinding.ItemCommandTemplateBinding
 import com.lightterm.databinding.ItemRemoteFileBinding
+import com.lightterm.databinding.ItemTerminalSearchResultBinding
+import com.lightterm.domain.model.CommandTemplate
+import com.lightterm.domain.model.CommandTemplatePlaceholder
 import com.lightterm.domain.model.SessionConnectionState
+import com.lightterm.domain.model.renderCommandTemplate
 import com.lightterm.ui.theme.resolveThemeColor
 import java.text.DateFormat
 import java.util.Date
@@ -49,21 +64,25 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
     private val binding: FragmentSessionBinding
         get() = checkNotNull(_binding)
     private var followTerminalOutput = true
-    private var lastSubmitAtMs = 0L
+    private var isCommandComposerVisible = false
     private var fileManagerDialog: Dialog? = null
     private var fileEditorDialog: AlertDialog? = null
+    private var commandTemplateDialog: AlertDialog? = null
+    private var historySearchDialog: AlertDialog? = null
     private var fileManagerBinding: DialogRemoteFileManagerBinding? = null
     private var fileManagerJob: Job? = null
     private var currentRemoteListing: RemoteDirectoryListing? = null
     private var currentRemoteDirectory: String? = null
     private var remoteHomeDirectory: String? = null
     private var currentRemoteEntries: List<RemoteFileEntry> = emptyList()
-    private var fileManagerSortMode = FileManagerSortMode.NAME_ASC
+    private var fileManagerSortMode = FileManagerSortMode.MODIFIED_DESC
     private var fileManagerBusy = false
     private var pendingUploadDirectory: String? = null
     private var pendingDownloadEntry: RemoteFileEntry? = null
     private val recentRemoteDirectories = mutableListOf<String>()
     private val recentRemoteFiles = mutableListOf<String>()
+    private var editingCommandTemplateId: String? = null
+    private var historySearchMode = HistorySearchMode.COMMAND_HISTORY
 
     private val openLocalDocumentLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         handleSelectedLocalDocument(uri)
@@ -79,12 +98,15 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         SessionViewModel.Factory(
             sessionId = sessionId,
             sessionManager = requireContext().appContainer.sessionManager,
+            commandTemplateRepository = requireContext().appContainer.commandTemplateRepository,
+            commandHistoryRepository = requireContext().appContainer.commandHistoryRepository,
         )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentSessionBinding.bind(view)
+        isCommandComposerVisible = savedInstanceState?.getBoolean(STATE_COMMAND_COMPOSER_VISIBLE) ?: false
 
         binding.terminalView.setTerminalFontSize(
             requireContext().appContainer.appSettingsRepository.settings.value.terminalFontSizeSp,
@@ -93,6 +115,35 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         binding.terminalView.onFontScaleStepRequested = { step ->
             requireContext().appContainer.appSettingsRepository.adjustTerminalFont(step)
         }
+        binding.terminalView.onInputSequence = viewModel::sendTerminalInput
+        binding.terminalView.setOnClickListener {
+            followTerminalOutput = true
+            scrollTerminalToBottom()
+        }
+        binding.commandInput.doAfterTextChanged {
+            updateCommandComposerState()
+            renderCommandAutocomplete()
+        }
+        binding.commandInput.setOnEditorActionListener { _, actionId, event ->
+            val isSendAction =
+                actionId == EditorInfo.IME_ACTION_SEND ||
+                    actionId == EditorInfo.IME_ACTION_DONE ||
+                    (event?.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_ENTER)
+            if (isSendAction) {
+                sendCommandFromComposer()
+                true
+            } else {
+                false
+            }
+        }
+        binding.sendCommandButton.setOnClickListener {
+            sendCommandFromComposer()
+        }
+        binding.closeCommandComposerButton.setOnClickListener {
+            hideCommandComposer()
+        }
+        renderCommandComposerVisibility()
+        restoreRemoteFileHistory()
         binding.terminalScroll.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             binding.terminalView.updateViewport(binding.terminalScroll.width, binding.terminalScroll.height)
             if (followTerminalOutput) {
@@ -102,26 +153,11 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         binding.terminalScroll.setOnScrollChangeListener { _, _, _, _, _ ->
             followTerminalOutput = isTerminalNearBottom()
         }
-
-        binding.sendButton.setOnClickListener {
-            submitCommand()
-        }
         binding.reconnectButton.setOnClickListener {
             viewModel.reconnect()
         }
         binding.refreshButton.setOnClickListener {
             viewModel.refresh()
-        }
-        binding.commandInput.setOnEditorActionListener { _, actionId, event ->
-            val isHardwareEnter = event?.keyCode == KeyEvent.KEYCODE_ENTER &&
-                event.action == KeyEvent.ACTION_DOWN
-            val isImeSend = event == null && actionId == EditorInfo.IME_ACTION_SEND
-            if (isHardwareEnter || isImeSend) {
-                submitCommand()
-                true
-            } else {
-                false
-            }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -144,18 +180,52 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
                 showFileManagerDialog()
             }
         }
+        parentFragmentManager.setFragmentResultListener(
+            REQUEST_KEY_OPEN_COMMAND_TEMPLATES,
+            viewLifecycleOwner,
+        ) { _, result ->
+            if (result.getString(RESULT_KEY_SESSION_ID) == sessionId) {
+                showDialogAfterMenuDismiss(::showCommandTemplateDialog)
+            }
+        }
+        parentFragmentManager.setFragmentResultListener(
+            REQUEST_KEY_OPEN_HISTORY_SEARCH,
+            viewLifecycleOwner,
+        ) { _, result ->
+            if (result.getString(RESULT_KEY_SESSION_ID) == sessionId) {
+                showDialogAfterMenuDismiss(::showHistorySearchDialog)
+            }
+        }
+        parentFragmentManager.setFragmentResultListener(
+            REQUEST_KEY_OPEN_COMMAND_COMPOSER,
+            viewLifecycleOwner,
+        ) { _, result ->
+            if (result.getString(RESULT_KEY_SESSION_ID) == sessionId) {
+                showDialogAfterMenuDismiss(::showCommandComposer)
+            }
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_COMMAND_COMPOSER_VISIBLE, isCommandComposerVisible)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onDestroyView() {
         fileManagerJob?.cancel()
         fileManagerDialog?.dismiss()
         fileEditorDialog?.dismiss()
+        commandTemplateDialog?.dismiss()
+        historySearchDialog?.dismiss()
         fileManagerDialog = null
         fileEditorDialog = null
+        commandTemplateDialog = null
+        historySearchDialog = null
         fileManagerBinding = null
         currentRemoteListing = null
         _binding?.terminalView?.onTerminalSizeChanged = null
         _binding?.terminalView?.onFontScaleStepRequested = null
+        _binding?.terminalView?.onInputSequence = null
         _binding = null
         super.onDestroyView()
     }
@@ -163,26 +233,16 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
     private fun render(state: com.lightterm.core.session.SessionUiState) {
         val stickToBottom = followTerminalOutput || isTerminalNearBottom()
 
-        binding.sessionAliasText.text = state.title
-        binding.sessionTargetText.text = state.server.targetLabel()
-        binding.sessionStatusChip.text = labelForConnectionState(state.connectionState)
-        binding.sessionStatusChip.backgroundTintList = ColorStateList.valueOf(resolveStatusColor(state.connectionState))
-        val hintParts = buildList {
-            state.statusDetail.takeIf { it.isNotBlank() }?.let(::add)
-            add(getString(R.string.session_hint_keepalive, state.keepAliveIntervalSeconds))
-            state.lastLatencyMs?.let {
-                add(getString(R.string.session_hint_latency, it))
-            }
-        }
-        binding.sessionHintText.text = hintParts.joinToString(" · ")
-        binding.sessionHintText.isVisible = hintParts.isNotEmpty()
         binding.terminalView.renderSnapshot(state.terminalSnapshot)
+        binding.terminalView.setInputEnabled(state.inputEnabled)
+        binding.commandInputLayout.isEnabled = true
+        binding.commandInput.isEnabled = true
+        updateCommandComposerState()
+        renderCommandAutocomplete()
         if (stickToBottom) {
             scrollTerminalToBottom()
             followTerminalOutput = true
         }
-        binding.commandInput.isEnabled = state.inputEnabled
-        binding.sendButton.isEnabled = state.inputEnabled
 
         val showRecoveryActions =
             state.connectionState == SessionConnectionState.ERROR ||
@@ -194,31 +254,6 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
             showFileManagerStatus(getString(R.string.file_manager_status_disconnected))
             updateFileManagerControls()
         }
-    }
-
-    private fun resolveStatusColor(state: SessionConnectionState): Int = when (state) {
-        SessionConnectionState.CONNECTED -> requireContext().resolveThemeColor(R.attr.lightTermStatusConnected)
-        SessionConnectionState.CONNECTING -> requireContext().resolveThemeColor(R.attr.lightTermStatusConnecting)
-        SessionConnectionState.RECONNECTING -> requireContext().resolveThemeColor(R.attr.lightTermStatusReconnecting)
-        SessionConnectionState.DISCONNECTED -> requireContext().resolveThemeColor(R.attr.lightTermStatusDisconnected)
-        SessionConnectionState.ERROR -> requireContext().resolveThemeColor(R.attr.lightTermDanger)
-    }
-
-    private fun labelForConnectionState(state: SessionConnectionState): String = when (state) {
-        SessionConnectionState.DISCONNECTED -> getString(R.string.session_state_disconnected)
-        SessionConnectionState.CONNECTING -> getString(R.string.session_state_connecting)
-        SessionConnectionState.CONNECTED -> getString(R.string.session_state_connected)
-        SessionConnectionState.RECONNECTING -> getString(R.string.session_state_reconnecting)
-        SessionConnectionState.ERROR -> getString(R.string.session_state_error)
-    }
-
-    private fun submitCommand() {
-        if (shouldIgnoreDuplicateSubmit()) {
-            return
-        }
-        val command = binding.commandInput.text?.toString().orEmpty()
-        viewModel.sendCommand(command)
-        binding.commandInput.setText("")
     }
 
     private fun showFileManagerDialog() {
@@ -698,10 +733,18 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
 
     private fun recordRecentDirectory(path: String) {
         recordRecentTarget(recentRemoteDirectories, path)
+        requireContext().appContainer.remoteFileHistoryRepository.recordDirectory(
+            server = viewModel.uiState.value.server,
+            path = path,
+        )
     }
 
     private fun recordRecentFile(path: String) {
         recordRecentTarget(recentRemoteFiles, path)
+        requireContext().appContainer.remoteFileHistoryRepository.recordFile(
+            server = viewModel.uiState.value.server,
+            path = path,
+        )
     }
 
     private fun recordRecentTarget(
@@ -713,6 +756,16 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         if (targets.size > MAX_HISTORY_ENTRIES) {
             targets.subList(MAX_HISTORY_ENTRIES, targets.size).clear()
         }
+    }
+
+    private fun restoreRemoteFileHistory() {
+        val history = requireContext().appContainer.remoteFileHistoryRepository.historyFor(
+            viewModel.uiState.value.server,
+        )
+        recentRemoteDirectories.clear()
+        recentRemoteDirectories.addAll(history.directories.take(MAX_HISTORY_ENTRIES))
+        recentRemoteFiles.clear()
+        recentRemoteFiles.addAll(history.files.take(MAX_HISTORY_ENTRIES))
     }
 
     private fun showCurrentListingStatus() {
@@ -769,6 +822,433 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         return uri.lastPathSegment?.substringAfterLast('/')
     }
 
+    private fun showCommandTemplateDialog() {
+        commandTemplateDialog?.dismiss()
+        editingCommandTemplateId = null
+        val dialogBinding = DialogCommandTemplateBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.command_template_title)
+            .setView(dialogBinding.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        fun refresh() {
+            renderCommandTemplateList(dialogBinding, viewModel.commandTemplates.value)
+            syncCommandTemplateEditor(dialogBinding)
+        }
+
+        dialogBinding.saveTemplateButton.setOnClickListener {
+            val label = dialogBinding.templateLabelInput.text?.toString().orEmpty()
+            val template = dialogBinding.templateCommandInput.text?.toString().orEmpty()
+            val message = editingCommandTemplateId?.let { templateId ->
+                viewModel.updateCommandTemplate(
+                    id = templateId,
+                    label = label,
+                    template = template,
+                )
+            } ?: viewModel.addCommandTemplate(
+                label = label,
+                template = template,
+            )
+            if (message != null) {
+                showToast(message)
+                return@setOnClickListener
+            }
+            clearCommandTemplateEditor(dialogBinding)
+            refresh()
+        }
+        dialogBinding.cancelTemplateEditButton.setOnClickListener {
+            clearCommandTemplateEditor(dialogBinding)
+            refresh()
+        }
+        dialogBinding.resetTemplatesButton.setOnClickListener {
+            viewModel.resetCommandTemplates()
+            clearCommandTemplateEditor(dialogBinding)
+            refresh()
+        }
+
+        dialog.setOnDismissListener {
+            if (commandTemplateDialog === dialog) {
+                commandTemplateDialog = null
+                editingCommandTemplateId = null
+            }
+        }
+        commandTemplateDialog = dialog
+        refresh()
+        dialog.show()
+    }
+
+    private fun renderCommandTemplateList(
+        dialogBinding: DialogCommandTemplateBinding,
+        templates: List<CommandTemplate>,
+    ) {
+        dialogBinding.templateListContainer.removeAllViews()
+        dialogBinding.emptyTemplateText.isVisible = templates.isEmpty()
+
+        templates.forEach { template ->
+            val itemBinding = ItemCommandTemplateBinding.inflate(
+                layoutInflater,
+                dialogBinding.templateListContainer,
+                false,
+            )
+            itemBinding.templateLabelText.text = template.label
+            itemBinding.templateCommandText.text = template.template
+            val placeholderSummary = runCatching(template::placeholders)
+                .getOrDefault(emptyList())
+                .joinToString(separator = " · ") { placeholder ->
+                    placeholder.key + placeholder.defaultValue?.let { "=$it" }.orEmpty()
+                }
+            itemBinding.templateParamText.text = if (placeholderSummary.isBlank()) {
+                getString(R.string.command_template_param_none)
+            } else {
+                getString(R.string.command_template_param_summary, placeholderSummary)
+            }
+            itemBinding.root.setOnClickListener {
+                useCommandTemplate(template)
+            }
+            itemBinding.useTemplateButton.setOnClickListener {
+                useCommandTemplate(template)
+            }
+            itemBinding.editTemplateButton.setOnClickListener {
+                editingCommandTemplateId = template.id
+                dialogBinding.templateLabelInput.setText(template.label)
+                dialogBinding.templateCommandInput.setText(template.template)
+                dialogBinding.templateCommandInput.text?.length?.let { selectionEnd ->
+                    dialogBinding.templateCommandInput.setSelection(selectionEnd)
+                }
+                syncCommandTemplateEditor(dialogBinding)
+            }
+            itemBinding.deleteTemplateButton.setOnClickListener {
+                viewModel.removeCommandTemplate(template.id)
+                if (editingCommandTemplateId == template.id) {
+                    clearCommandTemplateEditor(dialogBinding)
+                }
+                renderCommandTemplateList(dialogBinding, viewModel.commandTemplates.value)
+                syncCommandTemplateEditor(dialogBinding)
+            }
+            dialogBinding.templateListContainer.addView(itemBinding.root)
+        }
+    }
+
+    private fun syncCommandTemplateEditor(dialogBinding: DialogCommandTemplateBinding) {
+        val editingTemplate = viewModel.commandTemplates.value.firstOrNull { it.id == editingCommandTemplateId }
+        if (editingCommandTemplateId != null && editingTemplate == null) {
+            editingCommandTemplateId = null
+        }
+        val resolvedEditingTemplate = viewModel.commandTemplates.value.firstOrNull { it.id == editingCommandTemplateId }
+        dialogBinding.templateEditorModeText.isVisible = resolvedEditingTemplate != null
+        dialogBinding.templateEditorModeText.text = resolvedEditingTemplate?.let {
+            getString(R.string.command_template_editing, it.label)
+        }.orEmpty()
+        dialogBinding.cancelTemplateEditButton.isVisible = resolvedEditingTemplate != null
+        dialogBinding.saveTemplateButton.text = getString(
+            if (resolvedEditingTemplate != null) {
+                R.string.command_template_save
+            } else {
+                R.string.command_template_add
+            },
+        )
+    }
+
+    private fun clearCommandTemplateEditor(dialogBinding: DialogCommandTemplateBinding) {
+        editingCommandTemplateId = null
+        dialogBinding.templateLabelInput.setText("")
+        dialogBinding.templateCommandInput.setText("")
+    }
+
+    private fun useCommandTemplate(template: CommandTemplate) {
+        val placeholders = runCatching(template::placeholders).getOrElse { throwable ->
+            showToast(readableMessage(throwable))
+            return
+        }
+        if (placeholders.isEmpty()) {
+            if (stageCommandInComposer(template.template)) {
+                commandTemplateDialog?.dismiss()
+            }
+            return
+        }
+        runCatching {
+            showCommandTemplateParameterDialog(template, placeholders)
+        }.onFailure { throwable ->
+            showToast(readableMessage(throwable))
+        }
+    }
+
+    private fun showCommandTemplateParameterDialog(
+        template: CommandTemplate,
+        placeholders: List<CommandTemplatePlaceholder>,
+    ) {
+        if (placeholders.isEmpty()) {
+            if (stageCommandInComposer(template.template)) {
+                commandTemplateDialog?.dismiss()
+            }
+            return
+        }
+
+        val formContainer = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+        }
+        val helpText = TextView(requireContext()).apply {
+            text = getString(R.string.command_template_parameter_help)
+            setTextColor(requireContext().resolveThemeColor(R.attr.lightTermOnSurfaceVariant))
+            textSize = 13f
+        }
+        formContainer.addView(helpText)
+
+        val valueInputs = linkedMapOf<String, TextInputEditText>()
+        placeholders.forEachIndexed { index, placeholder ->
+            val inputLayout = TextInputLayout(requireContext()).apply {
+                hint = placeholder.displayLabel
+                helperText = placeholder.key
+                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_FILLED
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    topMargin = if (index == 0) dpToPx(12) else dpToPx(10)
+                }
+            }
+            val editText = TextInputEditText(inputLayout.context).apply {
+                setText(placeholder.defaultValue.orEmpty())
+                inputType = InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                text?.length?.let(::setSelection)
+            }
+            inputLayout.addView(
+                editText,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            valueInputs[placeholder.key] = editText
+            formContainer.addView(inputLayout)
+        }
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(template.label)
+            .setView(
+                ScrollView(requireContext()).apply {
+                    addView(
+                        formContainer,
+                        ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ),
+                    )
+                },
+            )
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.command_template_fill, null)
+            .setPositiveButton(R.string.send, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                if (stageCommandInComposer(renderTemplate(template, valueInputs))) {
+                    dialog.dismiss()
+                    commandTemplateDialog?.dismiss()
+                }
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                if (sendCommandOrStage(renderTemplate(template, valueInputs))) {
+                    dialog.dismiss()
+                    commandTemplateDialog?.dismiss()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun renderTemplate(
+        template: CommandTemplate,
+        valueInputs: Map<String, TextInputEditText>,
+    ): String {
+        return renderCommandTemplate(
+            template = template.template,
+            values = valueInputs.mapValues { (_, input) ->
+                input.text?.toString().orEmpty()
+            },
+        )
+    }
+
+    private fun showHistorySearchDialog() {
+        historySearchDialog?.dismiss()
+        historySearchMode = HistorySearchMode.COMMAND_HISTORY
+        val dialogBinding = DialogHistorySearchBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.history_search_title)
+            .setView(dialogBinding.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        dialogBinding.modeToggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) {
+                return@addOnButtonCheckedListener
+            }
+            historySearchMode = when (checkedId) {
+                R.id.outputModeButton -> HistorySearchMode.TERMINAL_OUTPUT
+                else -> HistorySearchMode.COMMAND_HISTORY
+            }
+            renderHistorySearchResults(dialogBinding)
+        }
+        dialogBinding.searchInput.doAfterTextChanged {
+            renderHistorySearchResults(dialogBinding)
+        }
+        dialogBinding.clearHistoryButton.setOnClickListener {
+            viewModel.clearCommandHistory()
+            renderHistorySearchResults(dialogBinding)
+        }
+
+        dialog.setOnDismissListener {
+            if (historySearchDialog === dialog) {
+                historySearchDialog = null
+            }
+        }
+        historySearchDialog = dialog
+        dialog.show()
+        dialogBinding.modeToggleGroup.check(R.id.historyModeButton)
+        renderHistorySearchResults(dialogBinding)
+    }
+
+    private fun renderHistorySearchResults(dialogBinding: DialogHistorySearchBinding) {
+        val query = dialogBinding.searchInput.text?.toString().orEmpty()
+        dialogBinding.resultListContainer.removeAllViews()
+        when (historySearchMode) {
+            HistorySearchMode.COMMAND_HISTORY -> {
+                val history = viewModel.searchCommandHistory(query)
+                dialogBinding.searchInputLayout.hint = getString(R.string.history_search_history_hint)
+                dialogBinding.resultStatusText.text = getString(
+                    R.string.history_search_history_status,
+                    history.size,
+                )
+                dialogBinding.clearHistoryButton.isVisible = viewModel.currentCommandHistory().isNotEmpty()
+                history.forEach { command ->
+                    val itemBinding = ItemCommandHistoryBinding.inflate(
+                        layoutInflater,
+                        dialogBinding.resultListContainer,
+                        false,
+                    )
+                    itemBinding.commandText.text = command
+                    itemBinding.fillCommandButton.setOnClickListener {
+                        if (stageCommandInComposer(command)) {
+                            historySearchDialog?.dismiss()
+                        }
+                    }
+                    itemBinding.sendCommandButton.setOnClickListener {
+                        if (sendCommandOrStage(command)) {
+                            historySearchDialog?.dismiss()
+                        }
+                    }
+                    dialogBinding.resultListContainer.addView(itemBinding.root)
+                }
+                dialogBinding.emptyResultText.text = getString(
+                    if (query.isBlank()) {
+                        R.string.history_search_history_empty
+                    } else {
+                        R.string.history_search_history_no_match
+                    },
+                )
+            }
+
+            HistorySearchMode.TERMINAL_OUTPUT -> {
+                val matches = buildTerminalSearchMatches(query)
+                dialogBinding.searchInputLayout.hint = getString(R.string.history_search_output_hint)
+                dialogBinding.resultStatusText.text = getString(
+                    if (query.isBlank()) {
+                        R.string.history_search_output_recent_status
+                    } else {
+                        R.string.history_search_output_match_status
+                    },
+                    matches.size,
+                )
+                dialogBinding.clearHistoryButton.isVisible = false
+                matches.forEach { match ->
+                    val itemBinding = ItemTerminalSearchResultBinding.inflate(
+                        layoutInflater,
+                        dialogBinding.resultListContainer,
+                        false,
+                    )
+                    itemBinding.lineNumberText.text = getString(
+                        R.string.history_search_output_line_number,
+                        match.lineIndex + 1,
+                    )
+                    itemBinding.lineText.text = match.lineText.ifBlank {
+                        getString(R.string.history_search_output_blank_line)
+                    }
+                    itemBinding.root.setOnClickListener {
+                        jumpToTerminalLine(match.lineIndex)
+                        historySearchDialog?.dismiss()
+                    }
+                    dialogBinding.resultListContainer.addView(itemBinding.root)
+                }
+                dialogBinding.emptyResultText.text = getString(
+                    if (query.isBlank()) {
+                        R.string.history_search_output_empty
+                    } else {
+                        R.string.history_search_output_no_match
+                    },
+                )
+            }
+        }
+        dialogBinding.emptyResultText.isVisible = dialogBinding.resultListContainer.childCount == 0
+    }
+
+    private fun buildTerminalSearchMatches(query: String): List<TerminalSearchMatch> {
+        val normalizedQuery = query.trim()
+        return viewModel.uiState.value.terminalSnapshot.lines
+            .mapIndexed { index, line ->
+                TerminalSearchMatch(
+                    lineIndex = index,
+                    lineText = line,
+                )
+            }
+            .asReversed()
+            .filter { match ->
+                if (normalizedQuery.isBlank()) {
+                    match.lineText.isNotBlank()
+                } else {
+                    match.lineText.contains(normalizedQuery, ignoreCase = true)
+                }
+            }
+            .take(MAX_TERMINAL_SEARCH_RESULTS)
+            .toList()
+    }
+
+    private fun jumpToTerminalLine(lineIndex: Int) {
+        val currentBinding = _binding ?: return
+        currentBinding.terminalView.highlightLine(lineIndex)
+        followTerminalOutput = false
+        currentBinding.terminalScroll.post {
+            if (_binding !== currentBinding) {
+                return@post
+            }
+            currentBinding.terminalScroll.smoothScrollTo(
+                0,
+                currentBinding.terminalView.scrollYForLine(lineIndex),
+            )
+        }
+    }
+
+    private fun sendCommandOrStage(command: String): Boolean {
+        val currentBinding = _binding ?: return false
+        if (!viewModel.uiState.value.inputEnabled) {
+            stageCommandInComposer(command)
+            showToast(getString(R.string.command_template_message_staged))
+            return true
+        }
+        followTerminalOutput = true
+        scrollTerminalToBottom()
+        viewModel.sendCommand(command)
+        if (isCommandComposerVisible) {
+            scheduleCommandComposerFocus()
+        } else {
+            currentBinding.terminalView.requestTerminalInput()
+        }
+        return true
+    }
+
     private fun readableMessage(throwable: Throwable): String {
         return throwable.message?.takeIf { it.isNotBlank() } ?: getString(R.string.session_status_connection_failed)
     }
@@ -777,13 +1257,187 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
         Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
     }
 
-    private fun shouldIgnoreDuplicateSubmit(): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastSubmitAtMs <= SUBMIT_DEBOUNCE_MS) {
-            return true
+    private fun stageCommandInComposer(command: String): Boolean {
+        val currentBinding = _binding ?: return false
+        showCommandComposer(focus = false)
+        currentBinding.commandInput.setText(command)
+        currentBinding.commandInput.setSelection(command.length)
+        updateCommandComposerState()
+        renderCommandAutocomplete()
+        scheduleCommandComposerFocus()
+        return true
+    }
+
+    private fun showCommandComposer() {
+        showCommandComposer(focus = true)
+    }
+
+    private fun showCommandComposer(focus: Boolean) {
+        if (_binding == null) {
+            return
         }
-        lastSubmitAtMs = now
-        return false
+        isCommandComposerVisible = true
+        renderCommandComposerVisibility()
+        updateCommandComposerState()
+        renderCommandAutocomplete()
+        if (focus) {
+            scheduleCommandComposerFocus()
+        }
+    }
+
+    private fun hideCommandComposer() {
+        val currentBinding = _binding ?: return
+        isCommandComposerVisible = false
+        renderCommandComposerVisibility()
+        currentBinding.commandInput.clearFocus()
+        hideSoftInput(currentBinding.commandInput)
+        if (viewModel.uiState.value.inputEnabled) {
+            currentBinding.terminalView.requestTerminalInput()
+        }
+    }
+
+    private fun renderCommandComposerVisibility() {
+        val currentBinding = _binding ?: return
+        currentBinding.commandComposerCard.isVisible = isCommandComposerVisible
+        if (!isCommandComposerVisible) {
+            currentBinding.commandSuggestionRow.removeAllViews()
+            currentBinding.commandSuggestionScroll.isVisible = false
+        }
+    }
+
+    private fun updateCommandComposerState() {
+        val currentBinding = _binding ?: return
+        currentBinding.sendCommandButton.isEnabled =
+            viewModel.uiState.value.inputEnabled &&
+                currentBinding.commandInput.text?.toString().orEmpty().isNotBlank()
+    }
+
+    private fun focusCommandComposer() {
+        val currentBinding = _binding ?: return
+        currentBinding.commandInput.requestFocus()
+        context?.getSystemService(InputMethodManager::class.java)
+            ?.showSoftInput(currentBinding.commandInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun scheduleCommandComposerFocus() {
+        val currentBinding = _binding ?: return
+        currentBinding.root.post {
+            if (_binding !== currentBinding) {
+                return@post
+            }
+            focusCommandComposer()
+        }
+    }
+
+    private fun sendCommandFromComposer() {
+        if (_binding == null) {
+            return
+        }
+        val command = binding.commandInput.text?.toString().orEmpty()
+        if (command.isBlank()) {
+            updateCommandComposerState()
+            return
+        }
+        if (!viewModel.uiState.value.inputEnabled) {
+            showToast(getString(R.string.command_template_message_staged))
+            scheduleCommandComposerFocus()
+            return
+        }
+        followTerminalOutput = true
+        scrollTerminalToBottom()
+        viewModel.sendCommand(command)
+        binding.commandInput.setText("")
+        updateCommandComposerState()
+        renderCommandAutocomplete()
+        scheduleCommandComposerFocus()
+    }
+
+    private fun renderCommandAutocomplete() {
+        val currentBinding = _binding ?: return
+        if (!isCommandComposerVisible) {
+            currentBinding.commandSuggestionRow.removeAllViews()
+            currentBinding.commandSuggestionScroll.isVisible = false
+            return
+        }
+        val suggestions = buildCommandAutocompleteSuggestions(
+            query = currentBinding.commandInput.text?.toString().orEmpty(),
+        )
+
+        currentBinding.commandSuggestionRow.removeAllViews()
+        suggestions.forEach { suggestion ->
+            currentBinding.commandSuggestionRow.addView(
+                createCommandSuggestionButton(suggestion),
+            )
+        }
+        currentBinding.commandSuggestionScroll.isVisible = suggestions.isNotEmpty()
+    }
+
+    private fun buildCommandAutocompleteSuggestions(query: String): List<CommandAutocompleteSuggestion> {
+        return CommandAutocompleteEngine.buildSuggestions(
+            query = query,
+            history = viewModel.currentCommandHistory(),
+            templates = viewModel.commandTemplates.value,
+            recentRemoteDirectories = recentRemoteDirectories,
+            recentRemoteFiles = recentRemoteFiles,
+            maxItems = MAX_COMMAND_AUTOCOMPLETE_ITEMS,
+        )
+    }
+
+    private fun createCommandSuggestionButton(
+        suggestion: CommandAutocompleteSuggestion,
+    ): MaterialButton {
+        val context = requireContext()
+        return MaterialButton(
+            context,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle,
+        ).apply {
+            text = suggestion.displayLabel
+            isAllCaps = false
+            minimumWidth = 0
+            minHeight = dpToPx(36)
+            minimumHeight = dpToPx(36)
+            cornerRadius = dpToPx(16)
+            insetTop = 0
+            insetBottom = 0
+            setTextColor(context.resolveThemeColor(R.attr.lightTermOnSurface))
+            backgroundTintList = ColorStateList.valueOf(context.resolveThemeColor(R.attr.lightTermChipFill))
+            strokeColor = ColorStateList.valueOf(context.resolveThemeColor(R.attr.lightTermChipStroke))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginEnd = dpToPx(8)
+            }
+            setOnClickListener {
+                if (_binding == null) {
+                    return@setOnClickListener
+                }
+                binding.commandInput.setText(suggestion.fillValue)
+                binding.commandInput.setSelection(suggestion.fillValue.length)
+                scheduleCommandComposerFocus()
+            }
+        }
+    }
+
+    private fun hideSoftInput(view: View) {
+        context?.getSystemService(InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
+    private fun showDialogAfterMenuDismiss(action: () -> Unit) {
+        val currentBinding = _binding ?: return
+        currentBinding.root.post {
+            if (_binding !== currentBinding) {
+                return@post
+            }
+            if (!viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                return@post
+            }
+            runCatching(action).onFailure { throwable ->
+                showToast(readableMessage(throwable))
+            }
+        }
     }
 
     private fun isTerminalNearBottom(): Boolean {
@@ -811,11 +1465,16 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
 
     companion object {
         const val REQUEST_KEY_OPEN_FILE_MANAGER = "open_file_manager"
+        const val REQUEST_KEY_OPEN_COMMAND_TEMPLATES = "open_command_templates"
+        const val REQUEST_KEY_OPEN_HISTORY_SEARCH = "open_history_search"
+        const val REQUEST_KEY_OPEN_COMMAND_COMPOSER = "open_command_composer"
         const val RESULT_KEY_SESSION_ID = "request_session_id"
         private const val ARG_SESSION_ID = "session_id"
-        private const val SUBMIT_DEBOUNCE_MS = 250L
+        private const val STATE_COMMAND_COMPOSER_VISIBLE = "state_command_composer_visible"
         private const val MAX_HISTORY_ENTRIES = 6
         private const val FILE_GRID_COLUMN_COUNT = 2
+        private const val MAX_TERMINAL_SEARCH_RESULTS = 60
+        private const val MAX_COMMAND_AUTOCOMPLETE_ITEMS = 8
 
         fun newInstance(sessionId: String): SessionFragment {
             return SessionFragment().apply {
@@ -825,4 +1484,14 @@ class SessionFragment : Fragment(R.layout.fragment_session) {
             }
         }
     }
+
+    private enum class HistorySearchMode {
+        COMMAND_HISTORY,
+        TERMINAL_OUTPUT,
+    }
+
+    private data class TerminalSearchMatch(
+        val lineIndex: Int,
+        val lineText: String,
+    )
 }

@@ -83,6 +83,33 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.action_command_templates -> {
+                    val activeSessionId = viewModel.uiState.value.activeSessionId ?: return@setOnMenuItemClickListener true
+                    supportFragmentManager.setFragmentResult(
+                        SessionFragment.REQUEST_KEY_OPEN_COMMAND_TEMPLATES,
+                        bundleOf(SessionFragment.RESULT_KEY_SESSION_ID to activeSessionId),
+                    )
+                    true
+                }
+
+                R.id.action_history_search -> {
+                    val activeSessionId = viewModel.uiState.value.activeSessionId ?: return@setOnMenuItemClickListener true
+                    supportFragmentManager.setFragmentResult(
+                        SessionFragment.REQUEST_KEY_OPEN_HISTORY_SEARCH,
+                        bundleOf(SessionFragment.RESULT_KEY_SESSION_ID to activeSessionId),
+                    )
+                    true
+                }
+
+                R.id.action_command_bar -> {
+                    val activeSessionId = viewModel.uiState.value.activeSessionId ?: return@setOnMenuItemClickListener true
+                    supportFragmentManager.setFragmentResult(
+                        SessionFragment.REQUEST_KEY_OPEN_COMMAND_COMPOSER,
+                        bundleOf(SessionFragment.RESULT_KEY_SESSION_ID to activeSessionId),
+                    )
+                    true
+                }
+
                 R.id.action_font_decrease -> {
                     viewModel.decreaseTerminalFont()
                     true
@@ -191,6 +218,15 @@ class MainActivity : AppCompatActivity() {
         binding.toolbar.menu.findItem(R.id.action_font_decrease)?.isEnabled = state.appSettings.canDecreaseFont
         binding.toolbar.menu.findItem(R.id.action_font_increase)?.isEnabled = state.appSettings.canIncreaseFont
         val activeTab = state.sessionTabs.firstOrNull { it.sessionId == state.activeSessionId }
+        binding.toolbar.menu.findItem(R.id.action_command_templates)?.apply {
+            isVisible = activeTab != null
+        }
+        binding.toolbar.menu.findItem(R.id.action_history_search)?.apply {
+            isVisible = activeTab != null
+        }
+        binding.toolbar.menu.findItem(R.id.action_command_bar)?.apply {
+            isVisible = activeTab != null
+        }
         binding.toolbar.menu.findItem(R.id.action_file_manager)?.apply {
             isVisible = activeTab != null
             isEnabled = activeTab?.state == SessionConnectionState.CONNECTED
